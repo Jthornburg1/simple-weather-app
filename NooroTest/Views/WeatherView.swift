@@ -33,10 +33,11 @@ struct WeatherView: View {
     }
     
     @StateObject private var viewModel: ViewModel
-    @State private var viewState: WeatherViewState = .initial
+    @State private var viewState: WeatherViewState
     
     init(searchViewModel: ViewModel = ViewModel()) {
         _viewModel = StateObject(wrappedValue: searchViewModel)
+        self.viewState = searchViewModel.weatherCache == nil ? .initial : .detailed
     }
     
     var body: some View {
@@ -60,14 +61,17 @@ struct WeatherView: View {
                 LoadedState(
                     viewState: $viewState,
                     weatherImage: viewModel.weatherImage,
-                    cityName: viewModel.weatherResponse?.location?.name ?? "",
-                    temp: viewModel.weatherResponse?.current?.celsiusDegrees ?? 0
+                    cityName: viewModel.weatherCache?.locationName ?? "",
+                    temp: viewModel.weatherCache?.celsiusDegrees ?? 0
                 )
             case .detailed:
-                DetailedState(weatherImage: self.viewModel.weatherImage, weatherData: self.viewModel.weatherResponse)
+                DetailedState(weatherImage: self.viewModel.weatherImage, weatherData: self.viewModel.weatherCache)
             }
         }
         .padding()
+        .task {
+            viewModel.handleIntialImage()
+        }
         Spacer()
     }
     
@@ -94,7 +98,7 @@ struct WeatherView: View {
             ProgressView()
                 .onChange(of: self.viewModel.isLoading) { _, newValue in
                     if !newValue {
-                        if self.viewModel.weatherResponse != nil {
+                        if self.viewModel.weatherCache != nil {
                             self.viewState = .loaded
                         } else if self.viewModel.weatherFetchError != nil {
                             switch self.viewModel.weatherFetchError?.error?.code {
@@ -116,7 +120,7 @@ struct WeatherView: View {
         @Binding var viewState: WeatherViewState
         let weatherImage: Image?
         let cityName: String
-        let temp: Double
+        let temp: Int
         
         var body: some View {
             HStack {
@@ -154,7 +158,7 @@ struct WeatherView: View {
     
     struct DetailedState: View {
         let weatherImage: Image?
-        let weatherData: WeatherResponse?
+        let weatherData: WeatherCache?
         var body: some View {
             VStack(alignment: .center, spacing: 0) {
                 if let weatherImage = weatherImage {
@@ -163,10 +167,10 @@ struct WeatherView: View {
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 150, height: 150)
                 }
-                Text(weatherData?.location?.name ?? "")
+                Text(weatherData?.locationName ?? "")
                     .font(.custom(Constants.semiBoldFont, size: 30))
                 HStack(alignment: .top, spacing: 0) {
-                    Text("\(Int(weatherData?.current?.celsiusDegrees ?? 0))")
+                    Text("\(Int(weatherData?.celsiusDegrees ?? 0))")
                         .font(.custom(Constants.semiBoldFont, size: 70))
                     Text("°")
                         .font(.custom(Constants.regularFont, size: 30))
@@ -179,7 +183,7 @@ struct WeatherView: View {
     }
     
     struct GranularDataView: View {
-        let weatherData: WeatherResponse?
+        let weatherData: WeatherCache?
         
         var body: some View {
             HStack(alignment: .center, spacing: 50) {
@@ -187,7 +191,7 @@ struct WeatherView: View {
                     Text(Constants.humidity)
                         .font(.custom(Constants.regularFont, size: 12))
                         .foregroundColor(Constants.text196)
-                    Text("\(Int(weatherData?.current?.humidity ?? 0))%")
+                    Text("\(Int(weatherData?.humidity ?? 0))%")
                         .font(.custom(Constants.regularFont, size: 15))
                         .foregroundColor(Constants.text154)
                 }
@@ -195,7 +199,7 @@ struct WeatherView: View {
                     Text(Constants.uv)
                         .font(.custom(Constants.regularFont, size: 12))
                         .foregroundColor(Constants.text196)
-                    Text("\(Int(weatherData?.current?.uv ?? 0))")
+                    Text("\(Int(weatherData?.uv ?? 0))")
                         .font(.custom(Constants.regularFont, size: 15))
                         .foregroundColor(Constants.text154)
                 }
@@ -203,7 +207,7 @@ struct WeatherView: View {
                     Text(Constants.feelsLike)
                         .font(.custom(Constants.regularFont, size: 12))
                         .foregroundColor(Constants.text196)
-                    Text("\(Int(weatherData?.current?.feelsLikeCelsius ?? 0))")
+                    Text("\(Int(weatherData?.feelsLikeCelsius ?? 0))")
                         .font(.custom(Constants.regularFont, size: 15))
                         .foregroundColor(Constants.text154)
                 }

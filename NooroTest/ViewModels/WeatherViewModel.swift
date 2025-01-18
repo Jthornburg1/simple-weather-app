@@ -12,7 +12,7 @@ extension WeatherView {
     class ViewModel: ObservableObject {
         @Published var searchTerm: String = ""
         @Published var isLoading = false
-        @Published var weatherResponse: WeatherResponse?
+        @Published var weatherCache: WeatherCache?
         @Published var weatherFetchError: WeatherErrorResponse?
         @Published var isOtherApiError = false
         @Published var weatherImage: Image?
@@ -20,6 +20,20 @@ extension WeatherView {
         private let baseCurrentWeatherUrl = "https://api.weatherapi.com/v1/current.json"
         private let apiKey = "9222f99434ad4aa792a203504242201"
         private let urlSchemePrefix = "https:"
+        let cacheService: WeatherCacheServiceable
+        
+        init(cacheService: WeatherCacheServiceable = WeatherCacheService()) {
+            self.cacheService = cacheService
+            self.weatherCache = cacheService.loadCachedWeather()
+            self.weatherImage = Image(systemName: "questionmark.circle.fill")
+        }
+        
+        @MainActor
+        func handleIntialImage() {
+            if weatherCache != nil {
+                setWeatherImage()
+            }
+        }
         
         nonisolated func performSearch() async throws -> Decodable {
             guard var urlComponents = URLComponents(string: baseCurrentWeatherUrl) else {
@@ -56,16 +70,19 @@ extension WeatherView {
                     let fetched = try await performSearch()
                     await MainActor.run {
                         if let weather = fetched as? WeatherResponse {
-                            self.weatherResponse = weather
+                            self.cacheService.persist(weatherData: weather)
+                            self.weatherCache = cacheService.loadCachedWeather()
                             self.setWeatherImage()
                         } else if let weatherError = fetched as? WeatherErrorResponse {
                             setIsLoading(false)
+                            self.weatherCache = nil
                             self.weatherFetchError = weatherError
                         }
                     }
                 } catch {
                     setIsLoading(false)
                     await MainActor.run {
+                        self.weatherCache = nil
                         self.isOtherApiError = true
                     }
                 }
@@ -78,7 +95,7 @@ extension WeatherView {
         }
         
         nonisolated private func fetchImage() async throws -> Image? {
-            guard let iconUrlString = self.weatherResponse?.current?.condition?.iconUrl, let iconUrl = URL(string: "https:\(iconUrlString)") else {
+            guard let iconUrl = URL(string: "https:\(self.weatherCache?.iconUrl ?? "")") else {
                 throw URLError(.badURL)
             }
             
@@ -109,10 +126,6 @@ extension WeatherView {
                     }
                 }
             }
-        }
-        
-        nonisolated func persistData() {
-            
         }
     }
 }

@@ -8,7 +8,6 @@
 struct WeatherResponse: Decodable, Equatable {
     let location: SearchLocation?
     let current: CurrentWeather?
-    let code: Double?
 }
 
 struct SearchLocation: Decodable, Equatable {
