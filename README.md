@@ -23,8 +23,9 @@ A SwiftUI weather application that allows users to see a display of weather for 
 1. Clone the repository
 ```bash
 git clone https://github.com/Jthornburg1/simple-weather-app.git
+cd simple-weather-app
+
+2. Open and run
 ```bash
-or for SSH
-```bash
-git clone git@github.com:Jthornburg1/simple-weather-app.git
-```bash
+open NooroTest.xcodeproj
+
