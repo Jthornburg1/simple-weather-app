@@ -8,9 +8,7 @@ A SwiftUI weather application that allows users to see a display of weather for 
 - View current temperature and weather conditions
 - Detailed view showing additional metrics (humidity, UV index, feels-like temperature)
 - Persistent data storage using UserDefaults
-- Custom UI components
 - Error handling for various API scenarios
-- Custom fonts for enhanced visual appeal
 
 ## Requirements
 
