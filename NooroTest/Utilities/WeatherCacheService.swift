@@ -35,4 +35,3 @@ class WeatherCacheService: WeatherCacheServiceable {
         defaults.removeObject(forKey: cacheKey)
     }
 }
-

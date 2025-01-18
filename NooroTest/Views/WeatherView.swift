@@ -109,6 +109,8 @@ struct WeatherView: View {
                             default:
                                 self.viewState = .error("There was an error on our side. Please try again.")
                             }
+                        } else if viewModel.isOtherApiError {
+                            self.viewState = .error("Something went wrong on our side. Please try another search.")
                         }
                     }
                 }

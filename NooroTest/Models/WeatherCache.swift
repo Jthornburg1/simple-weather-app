@@ -19,10 +19,10 @@ struct WeatherCache: Codable {
     init(weatherResponse: WeatherResponse) {
         self.locationName = weatherResponse.location?.name ?? ""
         self.celsiusDegrees = Int(weatherResponse.current?.celsiusDegrees ?? 0)
-        self.humidity = Int(weatherResponse.current?.celsiusDegrees ?? 0)
-        self.uv = Int(weatherResponse.current?.humidity ?? 0)
+        self.humidity = Int(weatherResponse.current?.humidity ?? 0)
+        self.uv = Int(weatherResponse.current?.uv ?? 0)
         self.feelsLikeCelsius = Int(weatherResponse.current?.feelsLikeCelsius ?? 0)
         self.iconUrl = weatherResponse.current?.condition?.iconUrl ?? ""
-        self.timestamp = Date().timeIntervalSince1970
+        self.timestamp = Date().timeIntervalSince1970 // Perhaps we need to invalidate after some period?
     }
 }
