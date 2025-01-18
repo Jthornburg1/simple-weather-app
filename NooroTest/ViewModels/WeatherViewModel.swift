@@ -110,5 +110,9 @@ extension WeatherView {
                 }
             }
         }
+        
+        nonisolated func persistData() {
+            
+        }
     }
 }

@@ -20,6 +20,16 @@ struct WeatherView: View {
         static let textFieldPlaceholder = "Search Location"
         static let initialViewTitle = "No City Selected"
         static let initialViewSubtitle = "Please Search For A City"
+        static let regularFont = "Poppins-Regular"
+        static let semiBoldFont = "Poppins-SemiBold"
+        static let humidity = "Humidity"
+        static let uv = "UV"
+        static let feelsLike = "Feels Like"
+        
+        // Colors
+        static let text242 = Color(red: 242/255, green: 242/255, blue: 242/255)
+        static let text196 = Color(red: 196/255, green: 196/255, blue: 196/255)
+        static let text154 = Color(red: 154/255, green: 154/255, blue: 154/255)
     }
     
     @StateObject private var viewModel: ViewModel
@@ -30,7 +40,7 @@ struct WeatherView: View {
     }
     
     var body: some View {
-        VStack {
+        VStack(spacing: 20) {
             SearchTextField(
                 onSearch: {
                     self.viewState = .loading
@@ -48,15 +58,17 @@ struct WeatherView: View {
                 ErrorState(message: message)
             case .loaded:
                 LoadedState(
+                    viewState: $viewState,
                     weatherImage: viewModel.weatherImage,
                     cityName: viewModel.weatherResponse?.location?.name ?? "",
                     temp: viewModel.weatherResponse?.current?.celsiusDegrees ?? 0
                 )
-            default:
-                InitialViewState()
+            case .detailed:
+                DetailedState(weatherImage: self.viewModel.weatherImage, weatherData: self.viewModel.weatherResponse)
             }
         }
         .padding()
+        Spacer()
     }
     
     struct InitialViewState: View {
@@ -64,9 +76,9 @@ struct WeatherView: View {
             Spacer()
             VStack(spacing: 16) {
                 Text(Constants.initialViewTitle)
-                    .font(.custom("Poppins-SemiBold", size: 30))
+                    .font(.custom(Constants.semiBoldFont, size: 30))
                 Text(Constants.initialViewSubtitle)
-                    .font(.custom("Poppins-SemiBold", size: 15))
+                    .font(.custom(Constants.semiBoldFont, size: 15))
             }
             .frame(maxHeight: .infinity)
             Spacer()
@@ -101,12 +113,104 @@ struct WeatherView: View {
     }
     
     struct LoadedState: View {
+        @Binding var viewState: WeatherViewState
         let weatherImage: Image?
         let cityName: String
         let temp: Double
         
         var body: some View {
-            Text("Hi there")
+            HStack {
+                VStack(alignment: .leading) {
+                    Text(cityName)
+                        .font(.custom(Constants.semiBoldFont, size: 20))
+                    HStack(alignment: .top, spacing: 0) {
+                        Text("\(Int(temp))")
+                            .font(.custom(Constants.semiBoldFont, size: 60))
+                        Text("°")
+                            .font(.custom(Constants.regularFont, size: 20))
+                            .baselineOffset(-10)
+                    }
+                }
+                .padding(.leading, 16)
+                Spacer()
+                if let weatherImage = weatherImage {
+                    weatherImage
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 100, height: 100)
+                        .padding(.trailing, 16)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Constants.text242)
+            .cornerRadius(16)
+            .padding(.horizontal)
+            .onTapGesture {
+                viewState = .detailed
+            }
+        }
+    }
+    
+    struct DetailedState: View {
+        let weatherImage: Image?
+        let weatherData: WeatherResponse?
+        var body: some View {
+            VStack(alignment: .center, spacing: 0) {
+                if let weatherImage = weatherImage {
+                    weatherImage
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 150, height: 150)
+                }
+                Text(weatherData?.location?.name ?? "")
+                    .font(.custom(Constants.semiBoldFont, size: 30))
+                HStack(alignment: .top, spacing: 0) {
+                    Text("\(Int(weatherData?.current?.celsiusDegrees ?? 0))")
+                        .font(.custom(Constants.semiBoldFont, size: 70))
+                    Text("°")
+                        .font(.custom(Constants.regularFont, size: 30))
+                        .baselineOffset(-10)
+                }
+            }
+            .padding(.top, 20)
+            GranularDataView(weatherData: weatherData)
+        }
+    }
+    
+    struct GranularDataView: View {
+        let weatherData: WeatherResponse?
+        
+        var body: some View {
+            HStack(alignment: .center, spacing: 50) {
+                VStack(alignment: .center) {
+                    Text(Constants.humidity)
+                        .font(.custom(Constants.regularFont, size: 12))
+                        .foregroundColor(Constants.text196)
+                    Text("\(Int(weatherData?.current?.humidity ?? 0))%")
+                        .font(.custom(Constants.regularFont, size: 15))
+                        .foregroundColor(Constants.text154)
+                }
+                VStack {
+                    Text(Constants.uv)
+                        .font(.custom(Constants.regularFont, size: 12))
+                        .foregroundColor(Constants.text196)
+                    Text("\(Int(weatherData?.current?.uv ?? 0))")
+                        .font(.custom(Constants.regularFont, size: 15))
+                        .foregroundColor(Constants.text154)
+                }
+                VStack {
+                    Text(Constants.feelsLike)
+                        .font(.custom(Constants.regularFont, size: 12))
+                        .foregroundColor(Constants.text196)
+                    Text("\(Int(weatherData?.current?.feelsLikeCelsius ?? 0))")
+                        .font(.custom(Constants.regularFont, size: 15))
+                        .foregroundColor(Constants.text154)
+                }
+            }
+            .padding()
+            .background(Constants.text242)
+            .cornerRadius(16)
         }
     }
     
@@ -116,12 +220,11 @@ struct WeatherView: View {
         var body: some View {
             Spacer()
             Text(message)
-                .font(.custom("Poppins-Regular", size: 20))
+                .font(.custom(Constants.regularFont, size: 20))
                 .foregroundColor(.red)
                 .frame(maxHeight: .infinity)
                 .padding(.horizontal, 10)
         }
-        
     }
 }
 
