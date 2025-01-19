@@ -29,3 +29,6 @@ open NooroTest.xcodeproj
 ```
 3 Run in the simulator with Xcode GUI. There are no dependencies to install.
 
+## Note
+With an additional 30 minutes, I would detangle the `performSearch` and `fetchImage` functions from the ViewModel and wrap them in a networking layer that conforms to a protocol. This way the ViewModel would be networking would be mockable and the ViewModel, testable.
+
