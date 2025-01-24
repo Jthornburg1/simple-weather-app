@@ -8,124 +8,103 @@
 import SwiftUI
 
 extension WeatherView {
-    
     class ViewModel: ObservableObject {
-        @Published var searchTerm: String = ""
+        @Published var queryTerm: String = ""
         @Published var isLoading = false
         @Published var weatherCache: WeatherCache?
         @Published var weatherFetchError: WeatherErrorResponse?
         @Published var isOtherApiError = false
-        @Published var weatherImage: Image?
+        @Published var viewState: WeatherViewState = .initial
         
-        private let baseCurrentWeatherUrl = "https://api.weatherapi.com/v1/current.json"
-        private let apiKey = "9222f99434ad4aa792a203504242201"
-        private let urlSchemePrefix = "https:"
         let cacheService: WeatherCacheServiceable
+        let dataProvider: DataProvidable
         
-        init(cacheService: WeatherCacheServiceable = WeatherCacheService()) {
+        private var queryTask: Task<Void, Never>?
+        
+        init(cacheService: WeatherCacheServiceable = WeatherCacheService(), dataProvider: DataProvidable = DataProvider()) {
             self.cacheService = cacheService
             self.weatherCache = cacheService.loadCachedWeather()
-            self.weatherImage = Image(systemName: "questionmark.circle.fill")
+            self.dataProvider = dataProvider
         }
         
         @MainActor
-        func handleIntialImage() {
-            if weatherCache != nil {
-                setWeatherImage()
+        func handleViewState() {
+            if self.isLoading {
+                viewState = .loading
+            } else if self.weatherFetchError != nil {
+                self.handleWeatherFetchError(self.weatherFetchError?.error?.code ?? 0)
+            } else if self.isOtherApiError {
+                viewState = .error("Something went wrong on our side. Please try another search.")
+            } else {
+                viewState = .loaded
             }
         }
         
-        nonisolated func performSearch() async throws -> Decodable {
-            guard var urlComponents = URLComponents(string: baseCurrentWeatherUrl) else {
-                throw URLError(.badURL)
+        @MainActor
+        func determineInitialState() {
+            self.viewState = self.weatherCache == nil ? .initial : .detailed
+        }
+        
+        @MainActor
+        private func handleWeatherFetchError(_ code: Double) {
+            switch code {
+            case 1003:
+                self.viewState = .error("You must provide a location to search view weather.")
+            case 1006:
+                self.viewState = .error("The search term you entered didn't match a location in our records.")
+            default:
+                self.viewState = .error("There was an error on our side. Please try again.")
             }
-            
-            urlComponents.queryItems = [
-                URLQueryItem(name: "q", value: searchTerm),
-                URLQueryItem(name: "key", value: apiKey)
-            ]
-            
-            guard let url = urlComponents.url else {
-                throw URLError(.badURL)
+        }
+        
+        @MainActor
+        func expandToDetailView() {
+            if self.weatherCache != nil {
+                self.viewState = .detailed
             }
-            
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
-            
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let response = response as? HTTPURLResponse else {
-                throw URLError(.badServerResponse)
-            }
-            
-            return response.statusCode == 200 ? try JSONDecoder().decode(WeatherResponse.self, from: data) : try JSONDecoder().decode(WeatherErrorResponse.self, from: data)
         }
         
         @MainActor
         func updateValues() {
-            Task {
-                setIsLoading(true)
+            self.weatherFetchError = nil
+            queryTask?.cancel()
+            self.queryTask = Task {
+                self.setIsLoading(true)
+                self.handleViewState()
+                defer {
+                    self.setIsLoading(false)
+                    self.handleViewState()
+                }
                 do {
-                    let fetched = try await performSearch()
-                    await MainActor.run {
-                        if let weather = fetched as? WeatherResponse {
-                            self.cacheService.persist(weatherData: weather)
-                            self.weatherCache = cacheService.loadCachedWeather()
-                            self.setWeatherImage()
-                        } else if let weatherError = fetched as? WeatherErrorResponse {
-                            setIsLoading(false)
-                            self.weatherCache = nil
-                            self.weatherFetchError = weatherError
-                        }
-                    }
+                    let fetched = try await dataProvider.performQuery(with: self.queryTerm)
+                    self.handleFetch(fetched)
                 } catch {
-                    setIsLoading(false)
-                    await MainActor.run {
-                        self.weatherCache = nil
-                        self.isOtherApiError = true
-                    }
+                    self.handleFetchError()
                 }
             }
         }
         
         @MainActor
-        private func setIsLoading(_ loading: Bool) {
+        private func handleFetch(_ result: Decodable) {
+            if let weather = result as? WeatherResponse {
+                self.cacheService.persist(weatherData: weather)
+                self.weatherCache = cacheService.loadCachedWeather()
+                self.queryTerm = ""
+            } else if let weatherError = result as? WeatherErrorResponse {
+                self.weatherCache = nil
+                self.weatherFetchError = weatherError
+            }
+        }
+        
+        @MainActor
+        func handleFetchError() {
+            self.weatherCache = nil
+            self.isOtherApiError = true
+        }
+        
+        @MainActor
+        internal func setIsLoading(_ loading: Bool) {
             self.isLoading = loading
-        }
-        
-        nonisolated private func fetchImage() async throws -> Image? {
-            guard let iconUrl = URL(string: "https:\(self.weatherCache?.iconUrl ?? "")") else {
-                throw URLError(.badURL)
-            }
-            
-            do {
-                let (data, _) = try await URLSession.shared.data(from: iconUrl)
-                if let uiImage = UIImage(data: data) {
-                    return Image(uiImage: uiImage)
-                }
-            } catch {
-                throw URLError(.badServerResponse)
-            }
-            return nil
-        }
-        
-        @MainActor
-        private func setWeatherImage() {
-            Task {
-                do {
-                    let image = try await fetchImage()
-                    setIsLoading(false)
-                    await MainActor.run {
-                        self.weatherImage = image
-                    }
-                } catch {
-                    // Errors have been thrown, use placeholder
-                    await MainActor.run {
-                        self.weatherImage = Image(systemName: "questionmark.circle.fill")
-                    }
-                }
-            }
         }
     }
 }

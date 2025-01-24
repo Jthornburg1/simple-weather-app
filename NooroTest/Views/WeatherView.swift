@@ -7,14 +7,6 @@
 
 import SwiftUI
 
-enum WeatherViewState {
-    case initial
-    case loading
-    case loaded
-    case detailed
-    case error(String)
-}
-
 struct WeatherView: View {
     enum Constants {
         static let textFieldPlaceholder = "Search Location"
@@ -32,11 +24,12 @@ struct WeatherView: View {
         static let text154 = Color(red: 154/255, green: 154/255, blue: 154/255)
     }
     
-    @StateObject private var viewModel: ViewModel
+    @ObservedObject private var viewModel: ViewModel
     @State private var viewState: WeatherViewState
     
+    /**The strategy here is that a subclass of ViewModel can be created for the tests*/
     init(searchViewModel: ViewModel = ViewModel()) {
-        _viewModel = StateObject(wrappedValue: searchViewModel)
+        _viewModel = ObservedObject(initialValue: searchViewModel)
         self.viewState = searchViewModel.weatherCache == nil ? .initial : .detailed
     }
     
@@ -47,30 +40,31 @@ struct WeatherView: View {
                     self.viewState = .loading
                     viewModel.updateValues()
                 },
-                text: $viewModel.searchTerm
+                text: $viewModel.queryTerm
             )
             
-            switch self.viewState {
+            switch self.viewModel.viewState {
             case .initial:
                 InitialViewState()
             case .loading:
-                LoadingState(viewState: $viewState, viewModel: self.viewModel)
+                Spacer()
+                ProgressView()
+                Spacer()
             case .error(let message):
                 ErrorState(message: message)
             case .loaded:
                 LoadedState(
-                    viewState: $viewState,
-                    weatherImage: viewModel.weatherImage,
+                    viewModel: self.viewModel,
                     cityName: viewModel.weatherCache?.locationName ?? "",
                     temp: viewModel.weatherCache?.celsiusDegrees ?? 0
                 )
             case .detailed:
-                DetailedState(weatherImage: self.viewModel.weatherImage, weatherData: self.viewModel.weatherCache)
+                DetailedState(weatherData: self.viewModel.weatherCache)
             }
         }
         .padding()
         .task {
-            viewModel.handleIntialImage()
+            viewModel.determineInitialState()
         }
         Spacer()
     }
@@ -89,38 +83,8 @@ struct WeatherView: View {
         }
     }
     
-    struct LoadingState: View {
-        @Binding var viewState: WeatherViewState
-        @ObservedObject var viewModel: ViewModel
-        
-        var body: some View {
-            Spacer()
-            ProgressView()
-                .onChange(of: self.viewModel.isLoading) { _, newValue in
-                    if !newValue {
-                        if self.viewModel.weatherCache != nil {
-                            self.viewState = .loaded
-                        } else if self.viewModel.weatherFetchError != nil {
-                            switch self.viewModel.weatherFetchError?.error?.code {
-                            case 1003:
-                                self.viewState = .error("You must provide a location to search view weather.")
-                            case 1006:
-                                self.viewState = .error("The search term you entered didn't match a location in our records.")
-                            default:
-                                self.viewState = .error("There was an error on our side. Please try again.")
-                            }
-                        } else if viewModel.isOtherApiError {
-                            self.viewState = .error("Something went wrong on our side. Please try another search.")
-                        }
-                    }
-                }
-            Spacer()
-        }
-    }
-    
     struct LoadedState: View {
-        @Binding var viewState: WeatherViewState
-        let weatherImage: Image?
+        let viewModel: ViewModel
         let cityName: String
         let temp: Int
         
@@ -139,13 +103,17 @@ struct WeatherView: View {
                 }
                 .padding(.leading, 16)
                 Spacer()
-                if let weatherImage = weatherImage {
-                    weatherImage
+                AsyncImage(url: URL(string: "https:\(self.viewModel.weatherCache?.iconUrl ?? "")")) { image in
+                    image
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
+                        .scaledToFit()
                         .frame(width: 100, height: 100)
                         .padding(.trailing, 16)
+                } placeholder: {
+                    ProgressView()
                 }
+
+                    
             }
             .frame(maxWidth: .infinity)
             .padding()
@@ -153,24 +121,27 @@ struct WeatherView: View {
             .cornerRadius(16)
             .padding(.horizontal)
             .onTapGesture {
-                viewState = .detailed
+                viewModel.expandToDetailView()
             }
         }
     }
     
     struct DetailedState: View {
-        let weatherImage: Image?
         let weatherData: WeatherCache?
         var body: some View {
             VStack(alignment: .center, spacing: 0) {
-                if let weatherImage = weatherImage {
-                    weatherImage
+                AsyncImage(url: URL(string: "https:\(weatherData?.iconUrl ?? "")")) { image in
+                    image
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
+                        .scaledToFit()
                         .frame(width: 150, height: 150)
+                } placeholder: {
+                    ProgressView()
                 }
+
                 Text(weatherData?.locationName ?? "")
                     .font(.custom(Constants.semiBoldFont, size: 30))
+                
                 HStack(alignment: .top, spacing: 0) {
                     Text("\(Int(weatherData?.celsiusDegrees ?? 0))")
                         .font(.custom(Constants.semiBoldFont, size: 70))
